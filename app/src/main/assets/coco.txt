@@ -1,0 +1,3 @@
+maksimum60
+TrafficLightSign
+ZebraCross
