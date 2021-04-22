@@ -34,9 +34,12 @@ import android.util.TypedValue;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.tensorflow.lite.examples.detection.customview.OverlayView;
 import org.tensorflow.lite.examples.detection.customview.OverlayView.DrawCallback;
@@ -58,7 +61,6 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     private static final boolean TF_OD_API_IS_QUANTIZED = false;
     private static final String TF_OD_API_MODEL_FILE = "custom-416.tflite";
 
-    private TextToSpeech textToSpeech;
     private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/coco.txt";
 
     private static final DetectorMode MODE = DetectorMode.TF_OD_API;
@@ -84,7 +86,9 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
 
-
+    //Untuk Text To Speech
+    TextToSpeech t1,t2;
+    ArrayList <String> arrayList = new ArrayList<>();
 
     private MultiBoxTracker tracker;
 
@@ -99,15 +103,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
         borderedText.setTypeface(Typeface.MONOSPACE);
 
 
-        textToSpeech = new TextToSpeech(DetectorActivity.this, new TextToSpeech.OnInitListener() {
-            @Override
-            public void onInit(int status) {
-                if(status!= TextToSpeech.ERROR){
-                    textToSpeech.setLanguage(Locale.ENGLISH);
-                    textToSpeech.speak("maksimum 60",TextToSpeech.QUEUE_ADD,null,null);
-                }
-            }
-        });
+
 
         tracker = new MultiBoxTracker(this);
 
@@ -197,10 +193,21 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
             ImageUtils.saveBitmap(croppedBitmap);
         }
 
+        //Inisialisasi  Text To Speech
+        t1= new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if(status!= TextToSpeech.ERROR){
+                    t1.setLanguage(Locale.US);
+                }
+            }
+        });
+
         runInBackground(
                 new Runnable() {
                     @Override
                     public void run() {
+                        arrayList=new ArrayList<>();
                         LOGGER.i("Running detection on image " + currTimestamp);
                         final long startTime = SystemClock.uptimeMillis();
                         final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
@@ -222,6 +229,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                                 break;
                         }
 
+
                         final List<Classifier.Recognition> mappedRecognitions =
                                 new LinkedList<Classifier.Recognition>();
 
@@ -234,8 +242,29 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
                                 result.setLocation(location);
                                 mappedRecognitions.add(result);
+
+                                //Mendapatkan data kelas untuk  text to speech
+                                final String abc=result.getTitle();
+                                arrayList.add(abc);
+                                ExecutorService service= Executors.newFixedThreadPool(1);
+                                service.submit(new Runnable() {
+                                    @Override
+                                    // Inisialisasi kata yg diucapkan
+                                    public void run() {
+                                        if((abc).compareTo("maksimum60")==0){
+                                            t1.speak("Maksimum Speed in this Road is 60 km/h", TextToSpeech.QUEUE_FLUSH,null,null);
+                                        }else if ((abc).compareTo("trafficLightSign")==0){
+                                            t1.speak("Traffic Light in front of you",TextToSpeech.QUEUE_FLUSH,null,null);
+                                        }else if ((abc).compareTo("ZebraCross")==0){
+                                            t1.speak("Be careful there is a zebra crossing ahead ", TextToSpeech.QUEUE_FLUSH,null,null);
+                                        }
+
+                                    }
+                                });
+
                             }
                         }
+
 
                         tracker.trackResults(mappedRecognitions, currTimestamp);
                         trackingOverlay.postInvalidate();

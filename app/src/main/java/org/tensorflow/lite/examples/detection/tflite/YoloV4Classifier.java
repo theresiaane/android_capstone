@@ -200,6 +200,8 @@ public class YoloV4Classifier implements Classifier {
     // Config values.
 
     // Pre-allocated buffers.
+    private TextToSpeech textToSpeech;
+
     private Vector<String> labels = new Vector<String>();
     private int[] intValues;
 
@@ -468,10 +470,7 @@ public class YoloV4Classifier implements Classifier {
                         Math.min(bitmap.getWidth() - 1, xPos + w / 2),
                         Math.min(bitmap.getHeight() - 1, yPos + h / 2));
                 detections.add(new Recognition("" + i, labels.get(detectedClass),score,rectF,detectedClass ));
-
-
-
-
+//                Log.i("TTS", String.valueOf(detections.get(0).getTitle()));
             }
         }
         return detections;
