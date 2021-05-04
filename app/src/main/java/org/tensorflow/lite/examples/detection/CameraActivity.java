@@ -80,8 +80,8 @@ public abstract class CameraActivity extends AppCompatActivity
   private LinearLayout gestureLayout;
   private BottomSheetBehavior<LinearLayout> sheetBehavior;
 
-  protected TextView frameValueTextView, cropValueTextView, inferenceTimeTextView;
-  protected ImageView bottomSheetArrowImageView;
+  protected TextView frameValueTextView, cropValueTextView, inferenceTimeTextView, signDetected;
+  protected ImageView bottomSheetArrowImageView, signImage;
   private ImageView plusImageView, minusImageView;
   private SwitchCompat apiSwitchCompat;
   private TextView threadsTextView;
@@ -162,6 +162,8 @@ public abstract class CameraActivity extends AppCompatActivity
     frameValueTextView = findViewById(R.id.frame_info);
     cropValueTextView = findViewById(R.id.crop_info);
     inferenceTimeTextView = findViewById(R.id.inference_info);
+    signDetected = findViewById(R.id.signName);
+    signImage = findViewById(R.id.signImg);
 
     apiSwitchCompat.setOnCheckedChangeListener(this);
 
@@ -522,6 +524,10 @@ public abstract class CameraActivity extends AppCompatActivity
       threadsTextView.setText(String.valueOf(numThreads));
       setNumThreads(numThreads);
     }
+  }
+
+  protected void showDetectedSign(String detectedSign) {
+    signDetected.setText(detectedSign);
   }
 
   protected void showFrameInfo(String frameInfo) {

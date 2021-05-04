@@ -16,6 +16,8 @@
 
 package org.tensorflow.lite.examples.detection;
 
+import android.annotation.SuppressLint;
+import android.database.Observable;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.Canvas;
@@ -25,7 +27,10 @@ import android.graphics.Paint;
 import android.graphics.Paint.Style;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.location.Location;
+import android.location.SettingInjectorService;
 import android.media.ImageReader.OnImageAvailableListener;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
@@ -33,8 +38,12 @@ import android.util.Size;
 import android.util.TypedValue;
 import android.widget.Toast;
 
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +58,7 @@ import org.tensorflow.lite.examples.detection.env.Logger;
 import org.tensorflow.lite.examples.detection.tflite.Classifier;
 import org.tensorflow.lite.examples.detection.tflite.YoloV4Classifier;
 import org.tensorflow.lite.examples.detection.tracking.MultiBoxTracker;
+import org.tensorflow.lite.examples.detection.SignAdapter;
 
 /**
  * An activity that uses a TensorFlowMultiBoxDetector and ObjectTracker to detect and then track
@@ -66,7 +76,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     private static final DetectorMode MODE = DetectorMode.TF_OD_API;
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
     private static final boolean MAINTAIN_ASPECT = false;
-    private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
+    private static final Size DESIRED_PREVIEW_SIZE = new Size(1920, 1080);
     private static final boolean SAVE_PREVIEW_BITMAP = false;
     private static final float TEXT_SIZE_DIP = 10;
     OverlayView trackingOverlay;
@@ -85,6 +95,19 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
+
+    private SignAdapter adapter;
+
+
+    @SuppressLint("CheckResult")
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        setupRecycler();
+
+
+    }
 
     //Untuk Text To Speech
     TextToSpeech t1,t2;
@@ -193,6 +216,8 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
             ImageUtils.saveBitmap(croppedBitmap);
         }
 
+
+
         //Inisialisasi  Text To Speech
         t1= new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
             @Override
@@ -222,6 +247,8 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                         paint.setStyle(Style.STROKE);
                         paint.setStrokeWidth(2.0f);
 
+
+
                         float minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
                         switch (MODE) {
                             case TF_OD_API:
@@ -242,6 +269,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
                                 result.setLocation(location);
                                 mappedRecognitions.add(result);
+                                runOnUiThread(() -> updateSignList(result, croppedBitmap));
 
                                 //Mendapatkan data kelas untuk  text to speech
                                 final String abc=result.getTitle();
@@ -275,6 +303,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                                 new Runnable() {
                                     @Override
                                     public void run() {
+                                        //showDetectedSign();
                                         showFrameInfo(previewWidth + "x" + previewHeight);
                                         showCropInfo(cropCopyBitmap.getWidth() + "x" + cropCopyBitmap.getHeight());
                                         showInference(lastProcessingTimeMs + "ms");
@@ -282,6 +311,75 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                                 });
                     }
                 });
+    }
+
+    private void updateSignList(Classifier.Recognition result, Bitmap bitmap) {
+
+        SignEntity sign = getSignImage(result, bitmap);
+
+        ArrayList<SignEntity> list = new ArrayList<>(adapter.getSigns());
+
+        if (list.isEmpty()) {
+            addSignToAdapter(sign);
+            return;
+        }
+        if (list.contains(sign)) {
+            if (isRemoveValid(sign, list.get(list.indexOf(sign)))) {
+                adapter.getSigns().remove(sign);
+                addSignToAdapter(sign);
+            }
+        } else {
+            addSignToAdapter(sign);
+        }
+
+    }
+
+    private void addSignToAdapter(SignEntity sign) {
+        adapter.setSign(sign);
+    }
+
+    private boolean isRemoveValid(SignEntity sign1, SignEntity sign2) {
+        return isTimeDifferenceValid(sign1.getDate(), sign2.getDate())
+                || isLocationDifferenceValid(sign1.getLocation(), sign2.getLocation());
+    }
+
+    private boolean isTimeDifferenceValid(Date date1, Date date2) {
+        long milliseconds = date1.getTime() - date2.getTime();
+        Log.i("sign", "isTimeDifferenceValid " + ((milliseconds / (1000)) > 30));
+        return (int) (milliseconds / (1000)) > 30;
+    }
+
+    private boolean isLocationDifferenceValid(Location location1, Location location2) {
+        if (location1 == null || location2 == null)
+            return false;
+        return location1.distanceTo(location2) > 50;
+    }
+
+    private void setupRecycler() {
+        adapter = new SignAdapter(this);
+
+        RecyclerView signRecycler = findViewById(R.id.signRecycler);
+        signRecycler.setAdapter(adapter);
+        signRecycler.setLayoutManager(new LinearLayoutManager(this));
+    }
+
+    // INPUT GAMBAR
+    private SignEntity getSignImage(Classifier.Recognition result, Bitmap bitmap){
+        SignEntity sign = null;
+        if ("ZebraCross".equals(result.getTitle())){
+            sign = new SignEntity(result.getTitle(), R.drawable.zebracross);
+        } else if ("trafficLightSign".equals(result.getTitle())){
+            sign = new SignEntity(result.getTitle(), R.drawable.trafficlight_sign);
+        } else if ("maksimum60".equals(result.getTitle())){
+            sign = new SignEntity(result.getTitle(), R.drawable.maksimum60);
+        }
+
+        if (sign != null) {
+            sign.setConfidenceDetection(result.getConfidence());
+
+
+        }
+        return sign;
     }
 
     @Override
